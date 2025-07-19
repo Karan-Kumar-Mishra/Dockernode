@@ -6,6 +6,8 @@ import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
+
+
 import org.springframework.stereotype.Service;
 import com.github.dockerjava.api.command.PullImageResultCallback;
 import com.github.dockerjava.api.command.CreateNetworkResponse;
@@ -18,6 +20,8 @@ public class DockerService {
 
     public final DockerClient dockerClient;
     private static final Logger logger = LoggerFactory.getLogger(DockerService.class);
+    
+ 
 
     public DockerService() {
         try {
@@ -49,25 +53,7 @@ public class DockerService {
         }
     }
 
-    private String getDockerHost() {
-        String os = System.getProperty("os.name").toLowerCase();
-        System.out.println("os is => " + os);
-
-        if (os.contains("linux") && isWsl()) {
-
-            return "tcp://host.docker.internal:3389";
-        } else if (os.contains("win")) {
-
-            return "tcp://localhost:3389";
-
-        } else if (os.contains("mac")) {
-
-            return "unix:///var/run/docker.sock";
-        } else {
-
-            return "unix:///var/run/docker.sock";
-        }
-    }
+ 
 
     private boolean isWsl() {
         // Check if running in WSL

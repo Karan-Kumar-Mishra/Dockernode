@@ -9,7 +9,6 @@ import com.github.dockerjava.api.command.CreateContainerResponse;
 
 import com.github.dockerjava.api.model.*;
 
-
 public class Init {
         static DockerService DS = new DockerService();
 
@@ -33,15 +32,23 @@ public class Init {
                                 .withPortBindings(portBindings)
                                 .withBinds(binds) // Now accepts Binds object
                                 .withNetworkMode("DockerNodeNetwork");
+                String[] cmd = {
+                                "--api.insecure=true",
+                                "--providers.docker",
+                                "--providers.file.filename=/etc/traefik/traefik.yml",
+                                "--log.level=DEBUG" // Helpful for debugging
+                };
 
                 CreateContainerResponse basecontainer = DS.dockerClient.createContainerCmd("traefik")
                                 .withName("traefik")
-                                .withAttachStderr(false)
+                                .withAttachStderr(true)
                                 .withAttachStdin(false)
-                                .withAttachStdout(false)
+                                .withAttachStdout(true)
                                 .withTty(false)
                                 .withExposedPorts(ports)
                                 .withHostConfig(hostConfig)
+                                .withStdinOpen(true)
+                                .withCmd(cmd)
                                 .exec();
                 DS.startContainer(basecontainer.getId());
         }
@@ -53,5 +60,6 @@ public class Init {
                 DS.createNetwork("DockerNodeNetwork");
                 DS.pullImage("traefik:latest");
                 startBaseConatiner();
+
         }
 }
