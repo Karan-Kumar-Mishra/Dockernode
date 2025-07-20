@@ -61,6 +61,5 @@ public class Init {
                 DS.createNetwork("DockerNodeNetwork");
                 DS.pullImage("traefik:latest");
                 startBaseConatiner();
-
         }
 }

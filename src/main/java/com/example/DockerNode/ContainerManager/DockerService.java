@@ -7,7 +7,6 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 
-
 import org.springframework.stereotype.Service;
 import com.github.dockerjava.api.command.PullImageResultCallback;
 import com.github.dockerjava.api.command.CreateNetworkResponse;
@@ -20,8 +19,6 @@ public class DockerService {
 
     public final DockerClient dockerClient;
     private static final Logger logger = LoggerFactory.getLogger(DockerService.class);
-    
- 
 
     public DockerService() {
         try {
@@ -30,7 +27,7 @@ public class DockerService {
                     .withDockerHost("tcp://0.0.0.0:2375")
                     .withDockerTlsVerify(false)
                     .build();
-                        logger.info("Configured Docker Host: {}", config.getDockerHost());
+            logger.info("Configured Docker Host: {}", config.getDockerHost());
 
             DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
                     .dockerHost(config.getDockerHost())
@@ -53,16 +50,8 @@ public class DockerService {
         }
     }
 
- 
-
-    private boolean isWsl() {
-        // Check if running in WSL
-        String osRelease = System.getenv("WSL_DISTRO_NAME");
-        return osRelease != null && !osRelease.isEmpty();
-    }
-
     // Create and start a container
-    public String createAndStartContainer(String imageName, String containerName) {
+    public String createAndStartContainer(String imageName, String containerName) throws Exception {
         try {
             System.out.println("try to create container....");
             CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
@@ -71,7 +60,7 @@ public class DockerService {
             return startContainer(container.getId());
         } catch (Exception e) {
             System.out.println("Failed to create/start container: " + e.getMessage());
-            return null;
+            throw new Exception("contianer is all ready exist chnage the container name");
         }
     }
 
@@ -99,6 +88,10 @@ public class DockerService {
     // Remove a container
     public void removeContainer(String containerId) {
         try {
+            if(isRunning(containerId))
+            {
+               stopContainer(containerId);
+            }
             dockerClient.removeContainerCmd(containerId).exec();
         } catch (Exception e) {
             System.out.println("Failed to remove container: " + e.getMessage());
@@ -164,7 +157,15 @@ public class DockerService {
             System.out.println("Faild to get the docker id " + e.getMessage());
             return null;
         }
-
     }
+    boolean isRunning(String containerName) {
+    try {
+        var inspectResponse = dockerClient.inspectContainerCmd(containerName).exec();
+        return inspectResponse.getState().getRunning();
+    } catch (Exception e) {
+        logger.error("Failed to check if container {} is running: {}", containerName, e.getMessage(), e);
+        return false; // Return false if an error occurs (e.g., container doesn't exist)
+    }
+}
 
 }
