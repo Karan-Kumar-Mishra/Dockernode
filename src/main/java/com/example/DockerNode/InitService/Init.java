@@ -23,8 +23,9 @@ public class Init {
 
                 // 2. Create Binds object (correct type for withBinds)
                 String traefikConfigPath = Paths.get("./traefik.yml").toAbsolutePath().normalize().toString();
+                System.out.println("yml path is =>>> "+traefikConfigPath);
                 Binds binds = new Binds(
-                                Bind.parse(traefikConfigPath + ":/etc/traefik/traefik.yml"), // Now uses absolute path
+                                Bind.parse(traefikConfigPath + ":/traefik/traefik.yml"), // Now uses absolute path
                                 Bind.parse("/var/run/docker.sock:/var/run/docker.sock"));
 
                 // 3. Create HostConfig
