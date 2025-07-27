@@ -6,25 +6,32 @@ import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
-
 import org.springframework.stereotype.Service;
 import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.model.Image;
 import com.github.dockerjava.api.command.CreateNetworkResponse;
 import com.github.dockerjava.api.command.ListNetworksCmd;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class DockerService {
 
     public final DockerClient dockerClient;
     private static final Logger logger = LoggerFactory.getLogger(DockerService.class);
+    @Value("${docker.host}")
+    private String dockerhost;
 
     public DockerService() {
         try {
             // Configure Docker client
             DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                    .withDockerHost("tcp://0.0.0.0:2375")
+                    .withDockerHost("tcp://127.0.0.1:2375")
                     .withDockerTlsVerify(false)
                     .build();
             logger.info("Configured Docker Host: {}", config.getDockerHost());
@@ -50,19 +57,42 @@ public class DockerService {
         }
     }
 
-    // Create and start a container
-    public String createAndStartContainer(String imageName, String containerName) throws Exception {
-        try {
-            System.out.println("try to create container....");
-            CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
-                    .withName(containerName)
-                    .exec();
-            return startContainer(container.getId());
-        } catch (Exception e) {
-            System.out.println("Failed to create/start container: " + e.getMessage());
-            throw new Exception("contianer is all ready exist chnage the container name");
-        }
+  // Create and start a container
+public String createAndStartContainer(String imageName, String containerName) throws Exception {
+    try {
+        System.out.println("try to create container....");
+        
+        // Prepare the labels map
+        Map<String, String> labels = new HashMap<>();
+        labels.put("traefik.enable", "true");
+        
+        // Router configuration
+        labels.put("traefik.http.routers." + containerName + ".entrypoints", "DockerNodeNetwork");
+        
+        // Service configuration
+        labels.put("traefik.http.services." + containerName + ".loadbalancer.server.port", "8888");
+        
+        // Middlewares
+        labels.put("traefik.http.routers." + containerName + ".middlewares", "traefik-headers");
+        labels.put("traefik.http.middlewares.traefik-headers.headers.customrequestheaders.X-Real-IP", "remote_addr");
+        
+        // WebSocket configuration
+        // Note: This will overwrite the previous middlewares setting - you might want to combine them
+        labels.put("traefik.http.routers." + containerName + ".middlewares", "wssh-ws");
+        labels.put("traefik.http.middlewares.wssh-ws.headers.customresponseheaders.Sec-WebSocket-Accept", "*");
+
+        CreateContainerResponse container = dockerClient.createContainerCmd(imageName)
+                .withName(containerName)
+                .withLabels(labels)  // Add the labels here
+                .exec();
+
+        return startContainer(container.getId());
+
+    } catch (Exception e) {
+        System.out.println("Failed to create/start container: " + e.getMessage());
+        throw new Exception("container is already exist, change the container name");
     }
+}
 
     // Start a container
     public String startContainer(String containerId) {
@@ -88,9 +118,8 @@ public class DockerService {
     // Remove a container
     public void removeContainer(String containerId) {
         try {
-            if(isRunning(containerId))
-            {
-               stopContainer(containerId);
+            if (isRunning(containerId)) {
+                stopContainer(containerId);
             }
             dockerClient.removeContainerCmd(containerId).exec();
         } catch (Exception e) {
@@ -100,6 +129,10 @@ public class DockerService {
 
     // pull image
     public void pullImage(String imageName) {
+        if (isImagePresent(imageName)) {
+            logger.info("Image {} found locally", imageName);
+            return;
+        }
         PullImageResultCallback callback = new PullImageResultCallback() {
             @Override
             public void onNext(com.github.dockerjava.api.model.PullResponseItem item) {
@@ -123,6 +156,29 @@ public class DockerService {
             dockerClient.pullImageCmd(imageName).exec(callback).awaitCompletion();
         } catch (Exception e) {
             System.out.println("Failed to pull image " + e.getMessage());
+        }
+    }
+
+    public boolean isImagePresent(String imageName) {
+        try {
+            // List all images available locally
+            var images = dockerClient.listImagesCmd().exec();
+            // Check if any image matches the given imageName
+            for (Image image : images) {
+                if (image.getRepoTags() != null) {
+                    for (String tag : image.getRepoTags()) {
+                        if (tag.equals(imageName) || tag.startsWith(imageName + ":")) {
+                            logger.info("Image {} found locally", imageName);
+                            return true;
+                        }
+                    }
+                }
+            }
+            logger.info("Image {} not found locally", imageName);
+            return false;
+        } catch (Exception e) {
+            logger.error("Failed to check if image {} is present: {}", imageName, e.getMessage(), e);
+            return false;
         }
     }
 
@@ -158,14 +214,15 @@ public class DockerService {
             return null;
         }
     }
+
     boolean isRunning(String containerName) {
-    try {
-        var inspectResponse = dockerClient.inspectContainerCmd(containerName).exec();
-        return inspectResponse.getState().getRunning();
-    } catch (Exception e) {
-        logger.error("Failed to check if container {} is running: {}", containerName, e.getMessage(), e);
-        return false; // Return false if an error occurs (e.g., container doesn't exist)
+        try {
+            var inspectResponse = dockerClient.inspectContainerCmd(containerName).exec();
+            return inspectResponse.getState().getRunning();
+        } catch (Exception e) {
+            logger.error("Failed to check if container {} is running: {}", containerName, e.getMessage(), e);
+            return false; // Return false if an error occurs (e.g., container doesn't exist)
+        }
     }
-}
 
 }

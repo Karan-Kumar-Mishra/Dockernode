@@ -2,6 +2,10 @@ package com.example.DockerNode.Routers;
 
 import com.example.DockerNode.ContainerManager.DockerService;
 import com.example.DockerNode.Schema.RequestObjectCreate;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,10 +37,20 @@ public class Router {
                 return new ResponseEntity<>("Container name and image name must not be null or empty",
                         HttpStatus.BAD_REQUEST);
             }
-       
+            if(dockerService.isImagePresent(res.getName())==false)
+            {
+                dockerService.pullImage(res.getImagename());
+            }
+            
             String id = dockerService.createAndStartContainer(res.getImagename(), res.getName());
             System.out.println("Request: " + res);
-            return new ResponseEntity<>("Container '" + id + "' is running successfully.", HttpStatus.CREATED);
+            Map<String, Object> successResponse = new HashMap<>();
+            successResponse.put("success", true);
+            successResponse.put("message", "Container created successfully");
+            successResponse.put("containerId", id);
+            successResponse.put("url", "http:");
+            return ResponseEntity.status(HttpStatus.CREATED).body(successResponse);
+    
         } catch (Exception e) {
             System.err.println("Error creating container: " + e.getMessage());
             return new ResponseEntity<>("Failed to create container: " + e.getMessage(),
